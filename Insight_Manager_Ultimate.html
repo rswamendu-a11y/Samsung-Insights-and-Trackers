@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Insight Manager v10.0</title>
+    
+    <!-- Excel Engine -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        :root {
+            --bg: #0f172a; --surface: #1e293b; --border: #334155;
+            --primary: #3b82f6; --success: #10b981; --danger: #ef4444;
+            --text: #f8fafc; --text-muted: #94a3b8;
+        }
+        [data-theme="light"] {
+            --bg: #f8fafc; --surface: #ffffff; --border: #cbd5e1;
+            --primary: #2563eb; --text: #0f172a; --text-muted: #64748b;
+        }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; padding-bottom: 90px; -webkit-tap-highlight-color: transparent; transition: 0.3s; }
+        .container { max-width: 600px; margin: 0 auto; padding: 16px; }
+        .hidden { display: none !important; }
+        
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .hero { background: linear-gradient(135deg, #1e3a8a, #172554); border: 1px solid var(--primary); color: white; overflow: hidden; position: relative; }
+        
+        .btn { display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; gap: 6px; border: none; font-size: 13px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-outline { border: 1px solid var(--border); background: transparent; color: var(--text-muted); }
+        .btn-danger { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+        .btn-icon { width: 32px; height: 32px; padding: 0; border-radius: 50%; }
+
+        input, select, textarea { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 8px; width: 100%; outline: none; }
+        
+        .profile-badge { display: inline-flex; align-items: center; background: rgba(59,130,246,0.1); color: var(--primary); border: 1px solid rgba(59,130,246,0.2); padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
+
+        .row { display: grid; grid-template-columns: 2.5fr 1fr 1fr 1fr; padding: 10px 8px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
+        .row:last-child { border: none; }
+        .row-head { font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: bold; }
+
+        .footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--surface); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 8px 0; z-index: 50; }
+        .nav-item { background: none; border: none; display: flex; flex-direction: column; align-items: center; color: var(--text-muted); font-size: 10px; gap: 4px; }
+        .nav-item.active { color: var(--primary); }
+        svg { width: 20px; height: 20px; }
+
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--success); color: white; padding: 8px 20px; border-radius: 50px; font-weight: bold; font-size: 14px; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 999; }
+    </style>
+</head>
+<body>
+
+<div id="toast">Success</div>
+<div id="app"></div>
+
+<!-- NAV -->
+<div class="footer">
+    <button class="nav-item active" id="nav-dash" onclick="App.nav('dashboard')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</button>
+    <button class="nav-item" id="nav-imp" onclick="App.nav('import')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import</button>
+    <button class="nav-item" id="nav-set" onclick="App.nav('settings')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
+</div>
+
+<script>
+const App = {
+    data: {
+        view: 'dashboard', theme: 'dark',
+        profile: { name: 'Not Set', code: '' },
+        outlets: [], entries: [],
+        activeOutletId: null, editId: null,
+        tempInput: '', tempDate: new Date().toISOString().split('T')[0], tempClosed: false,
+        newOutlet: { name:'', code:'', sec:'', area:'', manager:'', managerCode:'' }
+    },
+
+    init() { this.load(); this.applyTheme(); this.render(); },
+
+    load() {
+        try {
+            const o = localStorage.getItem('im10_outlets');
+            const e = localStorage.getItem('im10_entries');
+            const p = localStorage.getItem('im10_profile');
+            const t = localStorage.getItem('im10_theme');
+            if(o) this.data.outlets = JSON.parse(o);
+            if(e) this.data.entries = JSON.parse(e);
+            if(p) this.data.profile = JSON.parse(p);
+            if(t) this.data.theme = t;
+        } catch(e){}
+    },
+
+    save() {
+        localStorage.setItem('im10_outlets', JSON.stringify(this.data.outlets));
+        localStorage.setItem('im10_entries', JSON.stringify(this.data.entries));
+        localStorage.setItem('im10_profile', JSON.stringify(this.data.profile));
+        localStorage.setItem('im10_theme', this.data.theme);
+    },
+
+    toggleTheme() {
+        this.data.theme = this.data.theme === 'dark' ? 'light' : 'dark';
+        this.save(); this.applyTheme(); this.render();
+    },
+    applyTheme() { document.documentElement.setAttribute('data-theme', this.data.theme); },
+
+    nav(view, id=null) {
+        this.data.view=view; if(id) this.data.activeOutletId=id;
+        this.data.editId=null; this.data.tempInput=''; this.data.tempDate=new Date().toISOString().split('T')[0];
+        this.render(); window.scrollTo(0,0);
+    },
+
+    toast(msg) {
+        const t=document.getElementById('toast'); t.innerText=msg; t.style.opacity=1;
+        setTimeout(()=>t.style.opacity=0, 2500);
+    },
+
+    // --- LOGIC ---
+    addOutlet() {
+        const { name, code, sec, area, manager, managerCode } = this.data.newOutlet;
+        if(!name || !code) return alert("Name and Code Required");
+        this.data.outlets.push({ id: Date.now(), name, code, sec, area, manager, managerCode });
+        this.data.newOutlet = { name:'', code:'', sec:'', area:'', manager:'', managerCode:'' };
+        this.save(); this.toast("Outlet Added"); this.render();
+    },
+
+    updateProfile() {
+        const n = document.getElementById('profName').value;
+        const c = document.getElementById('profCode').value;
+        this.data.profile = { name: n, code: c };
+        this.save(); this.toast("Profile Updated");
+    },
+
+    goManualEntry() {
+        const sel = document.getElementById('manualSelect');
+        if(!sel || !sel.value) return alert("Please select an outlet");
+        this.nav('outlet', parseFloat(sel.value));
+    },
+
+    // --- IMPORT (FIXED 0% BUG) ---
+    async importFiles(files) {
+        if(!window.XLSX) return alert("Engine Loading...");
+        let count=0; let detectedManager = null; let detectedManagerCode = null;
+
+        for(let i=0; i<files.length; i++) {
+            try {
+                const d = await files[i].arrayBuffer();
+                const wb = XLSX.read(d);
+                const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+                
+                // Headers
+                let name='', code='', sec='', area='', secCode='';
+                for(let r=0; r<8; r++) {
+                    if(json[r]) {
+                        const s = json[r].join(' ').toLowerCase();
+                        const val = json[r][1] || json[r][2] || '';
+                        if(s.includes('outlet name')) name = val;
+                        if(s.includes('outlet code')) code = val;
+                        if(s.includes('sec name')) sec = val;
+                        if(s.includes('sec code')) secCode = val;
+                        if(s.includes('area')) area = val;
+                        if(s.includes('manager name') && val) detectedManager = val;
+                        if(s.includes('manager code') && val) detectedManagerCode = val;
+                    }
+                }
+                if(!code) continue;
+
+                // Outlet
+                let oid = null;
+                const exO = this.data.outlets.find(o => o.code === code);
+                if(exO) { 
+                    oid = exO.id; 
+                    if(name) exO.name = name; if(sec) exO.sec = sec;
+                    if(secCode) exO.secCode = secCode; if(area) exO.area = area;
+                } else { 
+                    oid = Date.now()+Math.random(); 
+                    this.data.outlets.push({ id:oid, name:name||'Unknown', code, sec:sec||'', secCode:secCode||'', area:area||'' }); 
+                }
+
+                // Data
+                let hRow = -1;
+                for(let r=0; r<20; r++) { if(json[r] && json[r].includes('Date') && json[r].includes('Samsung')) { hRow=r; break; }}
+                if(hRow > -1) {
+                    const h = json[hRow].map(x=>(x||'').toString().toLowerCase());
+                    const idxDate = h.indexOf('date'); const idxSam = h.indexOf('samsung');
+                    // FIXED: Search for "Total" variations
+                    const idxTot = h.findIndex(x=>x === 'total' || x === 'total volume' || x === 'total vol');
+                    const idxDet = h.findIndex(x=>x.includes('model wise') || x.includes('models'));
+                    const mapB = { iphone: h.indexOf('iphone'), oppo: h.indexOf('oppo'), vivo: h.indexOf('vivo'), realme: h.indexOf('realme'), mi: h.indexOf('mi'), moto: h.indexOf('moto'), other: h.indexOf('other') };
+
+                    for(let r=hRow+1; r<json.length; r++) {
+                        const row = json[r];
+                        if(!row || !row[idxDate]) continue;
+                        let dStr = row[idxDate];
+                        if(typeof dStr==='number') dStr = new Date(Math.round((dStr-25569)*86400*1000)).toISOString().split('T')[0];
+
+                        const ent = {
+                            id: Date.now()+Math.random(), outletId: oid, date: dStr,
+                            samsung: Number(row[idxSam]||0), iphone: Number(row[mapB.iphone]||0),
+                            oppo: Number(row[mapB.oppo]||0), vivo: Number(row[mapB.vivo]||0),
+                            realme: Number(row[mapB.realme]||0), mi: Number(row[mapB.mi]||0),
+                            moto: Number(row[mapB.moto]||0), other: Number(row[mapB.other]||0),
+                            totalVolume: Number(row[idxTot]||0), modelDetails: (row[idxDet]||'').toString(),
+                            isClosed: Number(row[idxTot]||0)===0
+                        };
+                        // Live calculation fixes 0% bugs in stored files
+                        ent.ftdShare = ent.totalVolume>0 ? ((ent.samsung/ent.totalVolume)*100).toFixed(1) : 0;
+                        const exE = this.data.entries.findIndex(e => e.outletId===oid && e.date===dStr);
+                        if(exE > -1) this.data.entries[exE] = ent; else this.data.entries.push(ent);
+                    }
+                }
+                count++;
+            } catch(e){ console.error(e); }
+        }
+        if(detectedManager) { this.data.profile.name = detectedManager; if(detectedManagerCode) this.data.profile.code = detectedManagerCode; }
+        this.save(); this.toast(`Imported ${count} Files`); this.nav('dashboard');
+    },
+
+    // --- ENTRY ---
+    parse(text) {
+        const c={samsung:0,iphone:0,oppo:0,vivo:0,realme:0,mi:0,moto:0,other:0};
+        if(!text) return c;
+        text.split(';').forEach(chunk=>{
+            const parts=chunk.split(':'); if(parts.length<2) return;
+            let b=parts[0].trim().toLowerCase(); const models=parts[1].split(',');
+            let k='other';
+            if(b.includes('sam')) k='samsung'; else if(b.includes('iph')||b.includes('app')) k='iphone';
+            else if(b.includes('opp')) k='oppo'; else if(b.includes('viv')) k='vivo';
+            else if(b.includes('real')) k='realme'; else if(b.includes('mi')||b.includes('po')) k='mi';
+            else if(b.includes('mot')) k='moto';
+            models.forEach(m=>{ const idx=m.lastIndexOf('-'); if(idx>-1) { const v=parseInt(m.substring(idx+1)); if(!isNaN(v)) c[k]+=v; }});
+        });
+        return c;
+    },
+
+    saveEntry() {
+        const counts = this.data.tempClosed ? {samsung:0,iphone:0,oppo:0,vivo:0,realme:0,mi:0,moto:0,other:0} : this.parse(this.data.tempInput);
+        let t=0; Object.values(counts).forEach(v=>t+=v);
+        const share = t>0 ? ((counts.samsung/t)*100).toFixed(1) : 0;
+        if(!this.data.tempClosed && t===0 && !confirm("Total 0. Save?")) return;
+        const entry = {
+            id: this.data.editId||Date.now(), outletId: this.data.activeOutletId, date: this.data.tempDate,
+            isClosed: this.data.tempClosed, modelDetails: this.data.tempClosed?"Store Closed":this.data.tempInput,
+            totalVolume: t, ftdShare: share, ...counts
+        };
+        const exIdx = this.data.entries.findIndex(e => e.id===entry.id || (e.outletId===entry.outletId && e.date===entry.date && !this.data.editId));
+        if(exIdx > -1) { if(!this.data.editId && !confirm("Overwrite?")) return; this.data.entries[exIdx]=entry; }
+        else this.data.entries.push(entry);
+        this.data.entries.sort((a,b)=>new Date(b.date)-new Date(a.date));
+        this.save(); this.toast("Saved"); this.nav('outlet', this.data.activeOutletId);
+    },
+    deleteEntry(id) { if(confirm("Delete?")) { this.data.entries=this.data.entries.filter(e=>e.id!==id); this.save(); this.render(); } },
+
+    // --- EXPORT ---
+    exportExcel(mode) {
+        if(!window.XLSX) return alert("Engine Loading...");
+        let rows = this.data.entries;
+        let fname = "Insight_Full.xlsx";
+        if(mode==='month') {
+            const m = document.getElementById('expMonth').value; if(!m) return alert("Select Month");
+            rows = rows.filter(e => e.date.startsWith(m)); fname = `Insight_${m}.xlsx`;
+        }
+        const getMTD = (list) => {
+            let s={samsung:0,iphone:0,oppo:0,vivo:0,realme:0,mi:0,moto:0,other:0,total:0};
+            list.forEach(e=>{ s.samsung+=e.samsung; s.iphone+=e.iphone; s.oppo+=e.oppo; s.vivo+=e.vivo; s.realme+=e.realme; s.mi+=e.mi; s.moto+=e.moto; s.other+=e.other; s.total+=e.totalVolume; });
+            return s;
+        };
+        const wb = XLSX.utils.book_new();
+        
+        // SUMMARY
+        const sumData = [
+            ["INSIGHT MANAGER REPORT"], ["Generated", new Date().toLocaleString()],
+            ["Manager Name", this.data.profile.name], ["Manager Code", this.data.profile.code], [],
+            ["OUTLET PERFORMANCE"],
+            ["Outlet", "Code", "SEC Name", "SEC Code", "Area", "Days Active", "Total Vol", "Samsung", "iPhone", "Oppo", "Vivo", "Realme", "Share %"]
+        ];
+        let g = getMTD(rows);
+        this.data.outlets.forEach(o => {
+            const es = rows.filter(e => e.outletId === o.id);
+            const s = getMTD(es);
+            const sh = s.total>0 ? ((s.samsung/s.total)*100).toFixed(1)+'%' : '0%';
+            sumData.push([o.name, o.code, o.sec, o.secCode, o.area, es.length, s.total, s.samsung, s.iphone, s.oppo, s.vivo, s.realme, sh]);
+        });
+        sumData.push([], ["GRAND TOTAL", "", "", "", "", "", g.total, g.samsung, g.iphone, g.oppo, g.vivo, g.realme, g.total>0 ? ((g.samsung/g.total)*100).toFixed(1)+'%' : '0%']);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Summary");
+
+        // RAW DATA
+        const raw = [["Date", "Outlet", "Code", "SEC", "SEC Code", "Samsung", "iPhone", "Oppo", "Vivo", "Realme", "Total", "Share %", "Details"]];
+        rows.forEach(e => {
+            const o = this.data.outlets.find(x=>x.id===e.outletId)||{};
+            raw.push([e.date, o.name, o.code, o.sec, o.secCode, e.samsung, e.iphone, e.oppo, e.vivo, e.realme, e.totalVolume, e.ftdShare+'%', e.modelDetails]);
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(raw), "Raw Data");
+        XLSX.writeFile(wb, fname); this.toast("Exported");
+    },
+
+    backup() {
+        const b = new Blob([JSON.stringify(this.data)], {type:'application/json'});
+        const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`Backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
+    },
+    restore(input) {
+        const f=input.files[0]; if(!f) return;
+        const r=new FileReader(); r.onload=e=>{
+            try { const d=JSON.parse(e.target.result); this.data.outlets=d.outlets; this.data.entries=d.entries; if(d.profile)this.data.profile=d.profile; this.save(); this.render(); this.toast("Restored"); }
+            catch(e){alert("Invalid");}
+        }; r.readAsText(f);
+    },
+
+    // --- RENDER ---
+    render() {
+        const root = document.getElementById('app');
+        const v = this.data.view;
+        document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));
+        if(v==='dashboard') document.getElementById('nav-dash').classList.add('active');
+        if(v==='import') document.getElementById('nav-imp').classList.add('active');
+        if(v==='settings') document.getElementById('nav-set').classList.add('active');
+
+        if(v==='dashboard') {
+            const curM = new Date().toISOString().slice(0,7);
+            const mtdRows = this.data.entries.filter(e=>e.date.startsWith(curM));
+            let g = { sam:0, tot:0 }; mtdRows.forEach(e => { g.sam+=e.samsung; g.tot+=e.totalVolume; });
+            const share = g.tot>0 ? ((g.sam/g.tot)*100).toFixed(1) : 0;
+            const ranked = [...this.data.outlets].map(o => {
+                const es = mtdRows.filter(e => e.outletId === o.id);
+                let s=0, t=0; es.forEach(e => { s+=e.samsung; t+=e.totalVolume; });
+                return { ...o, s, t, sh: t>0?((s/t)*100).toFixed(1):0 };
+            }).sort((a,b)=>b.t-a.t);
+
+            root.innerHTML = `
+            <div class="container">
+                <div class="flex justify-between items-center mb-4">
+                    <h1 class="text-xl font-bold" style="color:var(--primary)">Insight Manager</h1>
+                    <button class="btn-icon" onclick="App.toggleTheme()" style="background:var(--surface); border:1px solid var(--border)">${this.data.theme==='dark'?'🌙':'☀️'}</button>
+                </div>
+
+                <!-- PROFILE CARD -->
+                <div class="card mb-4" style="border-left: 4px solid var(--primary);">
+                    <div class="profile-badge">MANAGER PROFILE</div>
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-lg">${this.data.profile.name}</div>
+                            <div class="text-xs text-muted">${this.data.profile.code || 'No Code Set'}</div>
+                        </div>
+                        <button class="btn-outline" style="width:auto; padding:6px 12px; font-size:11px" onclick="App.nav('settings')">Edit Profile</button>
+                    </div>
+                </div>
+
+                <div class="card hero mb-4">
+                    <div style="font-size:10px; font-weight:bold; opacity:0.8; margin-bottom:8px">MTD PERFORMANCE (${curM})</div>
+                    <div class="flex justify-between items-end">
+                        <div><div class="text-2xl font-bold">${g.sam}</div><div style="font-size:10px; opacity:0.7">Samsung</div></div>
+                        <div class="text-right"><div class="text-3xl font-bold">${share}%</div><div style="font-size:10px; opacity:0.7">Share</div></div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center px-1 mb-2">
+                    <div style="font-size:11px; font-weight:bold; color:var(--text-muted)">OUTLET LEADERBOARD</div>
+                    <button class="btn btn-primary" style="width:auto; padding:4px 12px; font-size:10px" onclick="App.nav('import')">+ Add Data</button>
+                </div>
+
+                <div class="card" style="padding:0">
+                    <div class="row" style="background:rgba(0,0,0,0.05)">
+                        <div class="row-head px-2">Outlet / SEC</div>
+                        <div class="row-head text-center">Total</div>
+                        <div class="row-head text-center">Sam</div>
+                        <div class="row-head text-right px-2">Share</div>
+                    </div>
+                    ${ranked.map(o => `
+                        <div class="row px-2 hover:bg-gray-500/5 cursor-pointer" onclick="App.nav('outlet', ${o.id})">
+                            <div class="px-1"><div style="font-weight:bold">${o.name}</div><div style="font-size:10px; color:var(--text-muted)">SEC: ${o.sec||'-'}</div></div>
+                            <div class="text-center font-bold text-muted">${o.t}</div>
+                            <div class="text-center font-bold" style="color:var(--primary)">${o.s}</div>
+                            <div class="text-right px-1 font-bold ${o.sh>=30?'text-success':'text-danger'}">${o.sh}%</div>
+                        </div>
+                    `).join('')}
+                    ${ranked.length===0 ? '<div class="p-4 text-center text-xs text-muted">No Data</div>' : ''}
+                </div>
+            </div>`;
+        }
+
+        else if(v==='import') {
+            root.innerHTML = `
+            <div class="container">
+                <div class="flex justify-between items-center mb-6"><button class="btn btn-outline" style="width:auto" onclick="App.nav('dashboard')">← Back</button><h1 class="font-bold text-lg">Add Data</h1></div>
+                
+                <!-- Manual Entry Section -->
+                <div class="card mb-6">
+                    <div style="color:var(--primary); margin-bottom:8px; font-weight:bold; font-size:12px">MANUAL ENTRY</div>
+                    <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px">Select an outlet to add daily sales manually.</div>
+                    ${this.data.outlets.length > 0 ? `
+                        <select id="manualSelect" class="mb-3">
+                            <option value="" disabled selected>Select Outlet...</option>
+                            ${this.data.outlets.map(o => `<option value="${o.id}">${o.name} (${o.sec})</option>`).join('')}
+                        </select>
+                        <button class="btn btn-primary" onclick="App.goManualEntry()">Go to Entry Form</button>
+                    ` : `
+                        <div class="text-center p-4 border border-dashed border-gray-600 rounded">
+                            <div style="font-size:12px; color:var(--text-muted)">No outlets found.</div>
+                            <button class="btn btn-outline mt-2" onclick="App.nav('settings')">Create New Outlet</button>
+                        </div>
+                    `}
+                </div>
+
+                <!-- Bulk Import Section -->
+                <div class="card text-center py-8">
+                    <div style="color:var(--success); margin-bottom:12px"><svg fill="none" stroke="currentColor" stroke-width="2" width="40" height="40" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                    <h3 class="font-bold mb-2">Bulk Import Excel</h3>
+                    <p style="font-size:11px; color:var(--text-muted); margin-bottom:16px">Upload 18+ files at once.<br>Auto-detects Outlet, SEC & Manager.</p>
+                    <input type="file" id="bulk" multiple accept=".xlsx" class="hidden" onchange="App.importFiles(this.files)">
+                    <button class="btn btn-outline" onclick="document.getElementById('bulk').click()">Select Files</button>
+                </div>
+            </div>`;
+        }
+
+        else if(v==='settings') {
+            root.innerHTML = `
+            <div class="container">
+                <div class="flex justify-between items-center mb-6"><button class="btn btn-outline" style="width:auto" onclick="App.nav('dashboard')">← Back</button><h1 class="font-bold text-lg">Settings</h1></div>
+                
+                <div class="card">
+                    <div style="font-size:10px; font-weight:bold; color:var(--primary); margin-bottom:8px">MANAGER PROFILE</div>
+                    <input class="mb-2" id="profName" placeholder="Your Name" value="${this.data.profile.name}">
+                    <input class="mb-2" id="profCode" placeholder="Your Code" value="${this.data.profile.code}">
+                    <button class="btn btn-primary" onclick="App.updateProfile()">Save Profile</button>
+                </div>
+
+                <div class="card">
+                    <div style="font-size:10px; font-weight:bold; color:var(--success); margin-bottom:8px">REPORTS</div>
+                    <div class="flex gap-2 mb-4">
+                        <input type="month" id="expMonth" value="${new Date().toISOString().slice(0,7)}">
+                        <button class="btn btn-success" style="width:auto" onclick="App.exportExcel('month')">Export Month</button>
+                    </div>
+                    <button class="btn btn-outline" onclick="App.exportExcel('all')">Export All Data</button>
+                </div>
+
+                <div class="card">
+                    <div style="font-size:10px; font-weight:bold; color:var(--text-muted); margin-bottom:8px">BACKUP</div>
+                    <button class="btn btn-outline mb-2" onclick="App.backup()">Download JSON</button>
+                    <button class="btn btn-outline" onclick="document.getElementById('res').click()">Restore JSON</button>
+                    <input type="file" id="res" class="hidden" onchange="App.restore(this)">
+                </div>
+
+                <div class="card">
+                    <div style="font-size:10px; font-weight:bold; color:var(--primary); margin-bottom:8px">ADD OUTLET MANUALLY</div>
+                    <input class="mb-2" placeholder="Outlet Name" oninput="App.data.newOutlet.name=this.value">
+                    <input class="mb-2" placeholder="Outlet Code" oninput="App.data.newOutlet.code=this.value">
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <input placeholder="Area" oninput="App.data.newOutlet.area=this.value">
+                        <input placeholder="SEC Name" oninput="App.data.newOutlet.sec=this.value">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <input placeholder="Manager Name" oninput="App.data.newOutlet.manager=this.value">
+                        <input placeholder="Manager Code" oninput="App.data.newOutlet.managerCode=this.value">
+                    </div>
+                    <button class="btn btn-primary" onclick="App.addOutlet()">Add Outlet</button>
+                </div>
+
+                <div class="card" style="border-color:rgba(239,68,68,0.3)">
+                    <div style="font-size:10px; font-weight:bold; color:var(--danger); margin-bottom:8px">DANGER ZONE</div>
+                    <button class="btn btn-danger" onclick="if(confirm('RESET ALL?')) { localStorage.clear(); location.reload(); }">Factory Reset</button>
+                </div>
+            </div>`;
+        }
+
+        else if(v==='outlet') {
+            const o = this.data.outlets.find(x=>x.id===this.data.activeOutletId);
+            const hist = this.data.entries.filter(e=>e.outletId===o.id);
+            let prev={samsung:0}; if(!this.data.tempClosed && this.data.tempInput) prev=this.parse(this.data.tempInput);
+
+            root.innerHTML = `
+            <div class="container">
+                <div class="flex justify-between items-center mb-4">
+                    <button class="btn btn-outline" style="width:auto; padding:8px" onclick="App.nav('dashboard')">← Back</button>
+                    <div class="text-right">
+                        <div class="font-bold">${o.name}</div>
+                        <div style="font-size:10px; color:var(--text-muted)">SEC: ${o.sec}</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="flex justify-between items-center mb-3">
+                        <div style="font-size:10px; font-weight:bold; color:var(--text-muted)">${this.data.editId?'EDIT':'NEW'} ENTRY</div>
+                        <div class="flex gap-2">
+                            <input type="date" value="${this.data.tempDate}" onchange="App.data.tempDate=this.value" style="width:auto; padding:4px">
+                            <button class="btn ${this.data.tempClosed?'btn-danger':'btn-primary'}" style="width:auto; padding:4px 8px; font-size:10px" onclick="App.data.tempClosed=!App.data.tempClosed; App.render()">${this.data.tempClosed?'Closed':'Open'}</button>
+                        </div>
+                    </div>
+                    ${!this.data.tempClosed ? `
+                        <textarea placeholder="Paste: Samsung: S24-1; Vivo: Y200-2" class="mb-3" style="height:80px" oninput="App.data.tempInput=this.value; App.render()">${this.data.tempInput}</textarea>
+                        <div class="flex justify-center gap-4 mb-3 text-center">
+                            <div><div style="font-size:10px" class="text-muted">SAM</div><div class="font-bold text-primary text-xl">${prev.samsung||0}</div></div>
+                        </div>
+                    ` : `<div class="p-3 text-center text-danger border border-danger rounded mb-3 text-sm font-bold">Store Closed</div>`}
+                    <button class="btn btn-primary" onclick="App.saveEntry()">${this.data.editId?'Update':'Save'}</button>
+                    ${this.data.editId ? `<button class="btn btn-outline mt-2" onclick="App.nav('outlet', App.data.activeOutletId)">Cancel</button>` : ''}
+                </div>
+
+                <div style="font-size:10px; font-weight:bold; color:var(--text-muted); margin-bottom:8px; padding-left:4px">HISTORY</div>
+                ${hist.map(e => {
+                    // RE-CALCULATE PERCENTAGE LIVE TO FIX OLD 0% BUGS
+                    const liveShare = e.totalVolume > 0 ? ((e.samsung / e.totalVolume) * 100).toFixed(1) : '0.0';
+                    return `
+                    <div class="card py-3 flex justify-between items-center" style="margin-bottom:8px">
+                        <div><div style="font-weight:bold; font-size:13px">${e.date} ${e.isClosed?'<span class="text-danger">[C]</span>':''}</div><div class="text-muted" style="font-size:11px; width:140px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis">${e.modelDetails}</div></div>
+                        <div class="text-right flex items-center gap-2">
+                            <div><div style="font-weight:bold; color:var(--primary)">${e.samsung}/${e.totalVolume}</div><div style="font-size:10px" class="text-muted">${liveShare}%</div></div>
+                            <button class="btn btn-outline btn-icon" style="width:28px; height:28px" onclick="App.data.editId=${e.id}; App.data.tempDate='${e.date}'; App.data.tempInput='${e.isClosed?'':e.modelDetails}'; App.data.tempClosed=${e.isClosed}; App.render(); window.scrollTo(0,0)">✎</button>
+                            <button class="btn btn-danger btn-icon" style="width:28px; height:28px" onclick="App.deleteEntry(${e.id})">×</button>
+                        </div>
+                    </div>
+                `}).join('')}
+            </div>`;
+        }
+    }
+};
+App.init();
+</script>
+</body>
+</html>
+

@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SEC Daily Sales Tracker v22.0 (Import Fixed)</title>
+    
+    <!-- 1. Load Styles (Tailwind) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Load React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 3. Load Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 4. Load SheetJS -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
+    <!-- 5. Load Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { 
+            -webkit-tap-highlight-color: transparent; 
+            background-color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        /* Hide scrollbar for clean UI */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Smooth transitions */
+        .transition-all-300 { transition: all 0.3s ease-in-out; }
+        
+        /* Input focus rings */
+        input:focus { outline: none; border-color: #3b82f6; ring: 2px; ring-color: #93c5fd; }
+        
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- ICONS COMPONENT ---
+        const LucideIcon = ({ name, size = 18, color = "currentColor", className="" }) => {
+            return (
+                <span className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <i data-lucide={name} style={{ width: size, height: size, color: color }}></i>
+                </span>
+            );
+        };
+
+        // --- MODAL COMPONENT ---
+        const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confirmText = "Yes, Do It", confirmColor = "bg-red-600" }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl transform transition-all scale-100 border border-slate-100">
+                        <div className="flex justify-center mb-4 text-red-500">
+                            <LucideIcon name="alert-triangle" size={48} />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2 text-center">{title}</h3>
+                        <p className="text-slate-500 text-sm mb-6 text-center leading-relaxed">{message}</p>
+                        <div className="flex flex-col gap-3">
+                            <button onClick={onConfirm} className={`w-full py-3.5 rounded-xl text-white font-bold text-sm shadow-lg shadow-red-200 active:scale-95 transition-transform ${confirmColor}`}>
+                                {confirmText}
+                            </button>
+                            <button onClick={onCancel} className="w-full py-3.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 active:scale-95 transition-transform">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const DailySalesTracker = () => {
+            // --- STATE MANAGEMENT ---
+            const [view, setView] = useState('entry'); 
+            const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+            
+            // Profile Data
+            const [profile, setProfile] = useState(() => {
+                const saved = localStorage.getItem('sec_profile_v2');
+                return saved ? JSON.parse(saved) : { 
+                    name: '', code: '', outlet: '', outletCode: '', managerName: '', managerCode: '', avatar: ''
+                };
+            });
+
+            // Sales Data
+            const [salesData, setSalesData] = useState(() => {
+                const saved = localStorage.getItem('sec_sales_data_v2');
+                return saved ? JSON.parse(saved) : {};
+            });
+
+            // Entry State
+            const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
+            const [entry, setEntry] = useState({
+                samsung: '', iphone: '', oppo: '', vivo: '', realme: '', mi: '', moto: '', other: '', models: ''
+            });
+
+            const [notification, setNotification] = useState(null);
+            const [modal, setModal] = useState({ isOpen: false, type: null });
+
+            // --- EFFECTS ---
+            useEffect(() => {
+                if(window.lucide) window.lucide.createIcons();
+            }, [view, notification, profile, modal]); 
+
+            // Auto-Save
+            useEffect(() => {
+                localStorage.setItem('sec_profile_v2', JSON.stringify(profile));
+            }, [profile]);
+
+            useEffect(() => {
+                localStorage.setItem('sec_sales_data_v2', JSON.stringify(salesData));
+            }, [salesData]);
+
+            useEffect(() => {
+                const saved = salesData[currentDate] || {};
+                setEntry({
+                    samsung: saved.samsung ?? '',
+                    iphone: saved.iphone ?? '',
+                    oppo: saved.oppo ?? '',
+                    vivo: saved.vivo ?? '',
+                    realme: saved.realme ?? '',
+                    mi: saved.mi ?? '',
+                    moto: saved.moto ?? '',
+                    other: saved.other ?? '',
+                    models: saved.models ?? ''
+                });
+                setHasUnsavedChanges(false);
+            }, [currentDate, salesData]);
+
+            // --- HELPERS ---
+            const showNotification = (msg, type = 'success') => {
+                setNotification({ msg, type });
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            const handleEntryChange = (field, value) => {
+                setEntry(prev => ({ ...prev, [field]: value }));
+                setHasUnsavedChanges(true);
+            };
+
+            const saveEntry = () => {
+                setSalesData(prev => ({ ...prev, [currentDate]: entry }));
+                setHasUnsavedChanges(false);
+                showNotification('Data Saved Successfully');
+            };
+
+            // --- SMART PARSER ---
+            const parseAndPopulate = () => {
+                const text = entry.models.toLowerCase();
+                const newCounts = { samsung: 0, iphone: 0, oppo: 0, vivo: 0, realme: 0, mi: 0, moto: 0, other: 0 };
+                const segments = text.split(/[,;\n]/);
+                let currentBrand = 'other'; 
+                let foundAny = false;
+
+                segments.forEach(seg => {
+                    let s = seg.trim();
+                    if (!s) return;
+                    if (s.includes('sam')) currentBrand = 'samsung';
+                    else if (s.includes('app') || s.includes('iphone')) currentBrand = 'iphone';
+                    else if (s.includes('opp')) currentBrand = 'oppo';
+                    else if (s.includes('viv')) currentBrand = 'vivo';
+                    else if (s.includes('real')) currentBrand = 'realme';
+                    else if (s.includes('mi') || s.includes('red') || s.includes('xiao') || s.includes('poco')) currentBrand = 'mi';
+                    else if (s.includes('moto')) currentBrand = 'moto';
+                    
+                    const matchQty = s.match(/[-:\s]+(\d+)\s*$/);
+                    if (matchQty) {
+                        const qty = parseInt(matchQty[1]);
+                        if (qty > 0) {
+                            newCounts[currentBrand] += qty;
+                            foundAny = true;
+                        }
+                    }
+                });
+
+                if (foundAny) {
+                    const finalEntry = {
+                         ...entry,
+                         samsung: newCounts.samsung || entry.samsung,
+                         iphone: newCounts.iphone || entry.iphone,
+                         oppo: newCounts.oppo || entry.oppo,
+                         vivo: newCounts.vivo || entry.vivo,
+                         realme: newCounts.realme || entry.realme,
+                         mi: newCounts.mi || entry.mi,
+                         moto: newCounts.moto || entry.moto,
+                         other: newCounts.other || entry.other,
+                    };
+                    setEntry(finalEntry);
+                    setSalesData(prev => ({ ...prev, [currentDate]: finalEntry }));
+                    setHasUnsavedChanges(false);
+                    showNotification("Counters Updated & Saved!");
+                } else {
+                    showNotification("Could not find numbers. Format: 'Brand Model - Qty'", "error");
+                }
+            };
+            
+            const handleManualProfileSave = () => {
+                localStorage.setItem('sec_profile_v2', JSON.stringify(profile));
+                showNotification('Profile Updated Successfully');
+            };
+
+            const handleAvatarUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const maxWidth = 150;
+                        const scale = maxWidth / img.width;
+                        canvas.width = maxWidth;
+                        canvas.height = img.height * scale;
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        setProfile(prev => ({ ...prev, avatar: canvas.toDataURL('image/jpeg', 0.7) }));
+                        showNotification("Profile Picture Updated");
+                    };
+                };
+            };
+
+            // --- STATISTICS ---
+            const stats = useMemo(() => {
+                const brands = ['samsung', 'iphone', 'oppo', 'vivo', 'realme', 'mi', 'moto', 'other'];
+                const ftdData = salesData[currentDate] || {};
+                let ftdTotal = 0, ftdSam = 0;
+                brands.forEach(b => { const val = Number(ftdData[b] || 0); ftdTotal += val; if(b === 'samsung') ftdSam += val; });
+
+                const selectedMonth = currentDate.slice(0, 7);
+                let mtdTotal = 0, mtdSam = 0;
+                let mtdBreakdown = { samsung: 0, iphone: 0, oppo: 0, vivo: 0, realme: 0, mi: 0, moto: 0, other: 0 };
+
+                Object.keys(salesData).forEach(date => {
+                    if (date.startsWith(selectedMonth)) {
+                        const d = salesData[date];
+                        brands.forEach(b => { const val = Number(d[b] || 0); mtdTotal += val; mtdBreakdown[b] += val; if(b === 'samsung') mtdSam += val; });
+                    }
+                });
+
+                return {
+                    ftd: { total: ftdTotal, sam: ftdSam, samShare: ftdTotal > 0 ? ((ftdSam / ftdTotal) * 100).toFixed(1) : 0, data: ftdData },
+                    mtd: { total: mtdTotal, sam: mtdSam, samShare: mtdTotal > 0 ? ((mtdSam / mtdTotal) * 100).toFixed(1) : 0, breakdown: mtdBreakdown }
+                };
+            }, [salesData, currentDate]);
+
+            // --- EXPORT/IMPORT ---
+            const downloadJSON = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profile, salesData }));
+                const link = document.createElement('a');
+                link.href = dataStr;
+                link.download = `SEC_Backup_${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+            };
+
+            const handleJsonRestore = (e) => {
+                const reader = new FileReader();
+                reader.readAsText(e.target.files[0], "UTF-8");
+                reader.onload = (evt) => {
+                    try {
+                        const p = JSON.parse(evt.target.result);
+                        if (p.profile) setProfile(p.profile);
+                        if (p.salesData) setSalesData(p.salesData);
+                        showNotification('System Restored');
+                    } catch (err) { showNotification('Invalid File', 'error'); }
+                };
+            };
+
+            const exportToExcel = async () => {
+                try {
+                    const metadata = [["Outlet Name", profile.outlet], ["Outlet Code", profile.outletCode], ["SEC Name", profile.name], ["SEC Code", profile.code], ["Manager Name", profile.managerName], ["Manager Code", profile.managerCode], []];
+                    const headers = ["Date", "Samsung", "Iphone", "Oppo", "Vivo", "Realme", "MI (Xiaomi/Redmi)", "Moto", "Other", "Total", "Models"];
+                    const rows = Object.entries(salesData).sort((a, b) => new Date(b[0]) - new Date(a[0])).map(([d, v]) => {
+                        const t = Number(v.samsung||0)+Number(v.iphone||0)+Number(v.oppo||0)+Number(v.vivo||0)+Number(v.realme||0)+Number(v.mi||0)+Number(v.moto||0)+Number(v.other||0);
+                        return [d, v.samsung, v.iphone, v.oppo, v.vivo, v.realme, v.mi, v.moto, v.other, t, v.models];
+                    });
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([...metadata, headers, ...rows]), "Sales Report");
+                    XLSX.writeFile(wb, `Sales_Report_${profile.name}.xlsx`);
+                    showNotification("Report Downloaded");
+                } catch (e) { showNotification("Export Failed", "error"); }
+            };
+
+            // --- FULL EXCEL ENGINE RESTORED ---
+            const handleExcelUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: true });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        processExcelData(XLSX.utils.sheet_to_json(ws, { header: 1 }));
+                    } catch (error) { showNotification("Error parsing file", "error"); }
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            const processExcelData = (rows) => {
+                let updatedProfile = { ...profile };
+                let updatedSalesData = { ...salesData };
+                let count = 0;
+
+                // 1. Parse Metadata (Top rows)
+                rows.slice(0, 10).forEach(row => {
+                    if (!row[0]) return;
+                    const key = row[0].toString().toLowerCase();
+                    const val = row[1] ? row[1].toString().trim() : "";
+                    if (key.includes("outlet name")) updatedProfile.outlet = val;
+                    if (key.includes("outlet code")) updatedProfile.outletCode = val;
+                    if (key.includes("sec name")) updatedProfile.name = val;
+                    if (key.includes("sec code")) updatedProfile.code = val;
+                    if (key.includes("manager name")) updatedProfile.managerName = val;
+                    if (key.includes("manager code")) updatedProfile.managerCode = val;
+                });
+
+                // 2. Find Header Row
+                let headerIdx = -1;
+                rows.forEach((r, i) => { if(r.some(c => c && c.toString().toLowerCase() === 'date')) headerIdx = i; });
+
+                // 3. Parse Data Rows
+                if (headerIdx !== -1) {
+                    const headers = rows[headerIdx].map(h => h ? h.toString().toLowerCase().trim() : '');
+                    let map = { 
+                        date: headers.indexOf('date'), samsung: headers.indexOf('samsung'), iphone: headers.indexOf('iphone'),
+                        oppo: headers.indexOf('oppo'), vivo: headers.indexOf('vivo'), realme: headers.indexOf('realme'),
+                        mi: headers.indexOf('mi'), moto: headers.indexOf('moto'), other: headers.indexOf('other'), models: headers.indexOf('models')
+                    };
+                    
+                    // Fallback for variation in column names
+                    if(map.mi === -1) map.mi = headers.indexOf('xiaomi');
+                    if(map.mi === -1) map.mi = headers.indexOf('mi (xiaomi/redmi)');
+
+                    for (let i = headerIdx + 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row || !row[map.date]) continue;
+                        
+                        let dateVal = row[map.date];
+                        let dateStr = "";
+                        
+                        // Handle Excel Date Types
+                        if (dateVal instanceof Date) {
+                             dateStr = dateVal.toISOString().split('T')[0];
+                        } else if (typeof dateVal === 'number') {
+                             // Excel serial date to JS Date
+                             dateStr = new Date(Math.round((dateVal - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+                        } else {
+                             // String date
+                             dateStr = dateVal.toString().trim();
+                        }
+
+                        // Validate YYYY-MM-DD
+                        if (!/\d{4}-\d{2}-\d{2}/.test(dateStr)) continue;
+
+                        const newEntry = {
+                            samsung: row[map.samsung] || 0, iphone: row[map.iphone] || 0, oppo: row[map.oppo] || 0,
+                            vivo: row[map.vivo] || 0, realme: row[map.realme] || 0, mi: row[map.mi] || 0,
+                            moto: row[map.moto] || 0, other: row[map.other] || 0, models: row[map.models] || ""
+                        };
+                        
+                        updatedSalesData[dateStr] = newEntry;
+                        count++;
+                    }
+                }
+
+                setProfile(updatedProfile);
+                setSalesData(updatedSalesData);
+                showNotification(`Success! Imported ${count} days of history.`);
+            };
+
+            // --- RESET LOGIC ---
+            const triggerResetProfile = () => { setModal({ isOpen: true, type: 'profile' }); };
+            const triggerResetAll = () => { setModal({ isOpen: true, type: 'all' }); };
+            const confirmAction = () => {
+                if (modal.type === 'profile') {
+                    setProfile({ name: '', code: '', outlet: '', outletCode: '', managerName: '', managerCode: '', avatar: '' });
+                    showNotification("Profile Cleared", "success");
+                } else if (modal.type === 'all') {
+                    setProfile({ name: '', code: '', outlet: '', outletCode: '', managerName: '', managerCode: '', avatar: '' });
+                    setSalesData({});
+                    setEntry({ samsung: '', iphone: '', oppo: '', vivo: '', realme: '', mi: '', moto: '', other: '', models: '' });
+                    localStorage.removeItem('sec_profile_v2');
+                    localStorage.removeItem('sec_sales_data_v2');
+                    showNotification("System Factory Reset Complete", "success");
+                }
+                setModal({ isOpen: false, type: null });
+            };
+
+            // --- RENDER ---
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-slate-50 relative pb-20 shadow-xl overflow-hidden">
+                    
+                    {/* Header */}
+                    <header className="bg-blue-600 text-white p-4 pt-8 sticky top-0 z-20 shadow-md">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-white/20 overflow-hidden flex items-center justify-center border-2 border-white/30">
+                                    {profile.avatar ? <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover" /> : <LucideIcon name="user" size={20} color="white" />}
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold leading-tight">Daily Tracker</h1>
+                                    <p className="text-blue-100 text-xs">{profile.name ? `Hi, ${profile.name}` : 'Welcome'}</p>
+                                </div>
+                            </div>
+                            <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm" onClick={() => setView('report')}>
+                                <LucideIcon name="bar-chart-2" size={24} color="white" />
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Notification Toast */}
+                    {notification && (
+                        <div className={`fixed top-4 left-4 right-4 z-50 p-4 rounded-xl shadow-2xl transform transition-all duration-500 flex items-center gap-3 ${notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                            <LucideIcon name={notification.type === 'error' ? 'alert-circle' : 'check-circle'} />
+                            <p className="font-medium text-sm">{notification.msg}</p>
+                        </div>
+                    )}
+
+                    {/* Confirm Modal */}
+                    <ConfirmationModal 
+                        isOpen={modal.isOpen} 
+                        title={modal.type === 'all' ? "Factory Reset?" : "Clear Profile?"}
+                        message={modal.type === 'all' ? "This will wipe ALL sales history, logs, and profile data. This cannot be undone." : "This will clear your name, codes, and manager details. Sales data will remain."}
+                        onConfirm={confirmAction}
+                        onCancel={() => setModal({ isOpen: false, type: null })}
+                        confirmText={modal.type === 'all' ? "Yes, Wipe Everything" : "Yes, Clear Profile"}
+                    />
+
+                    {/* MAIN CONTENT */}
+                    <div className="p-4 space-y-6">
+
+                        {/* VIEW: DATA ENTRY */}
+                        {view === 'entry' && (
+                            <div className="animate-fade-in pb-10">
+                                <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 border border-slate-100">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Select Date</label>
+                                    <input type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl p-3" />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                    {[
+                                        { key: 'samsung', label: 'Samsung', color: 'text-blue-600' }, { key: 'iphone', label: 'Apple', color: 'text-slate-800' },
+                                        { key: 'oppo', label: 'Oppo', color: 'text-green-600' }, { key: 'vivo', label: 'Vivo', color: 'text-blue-400' },
+                                        { key: 'realme', label: 'Realme', color: 'text-yellow-500' }, 
+                                        { key: 'mi', label: 'Xiaomi / Redmi', color: 'text-orange-500' }, 
+                                        { key: 'moto', label: 'Moto', color: 'text-indigo-600' }, { key: 'other', label: 'Others', color: 'text-slate-500' },
+                                    ].map(brand => (
+                                        <div key={brand.key} className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+                                            <span className={`text-xs font-bold mb-1 ${brand.color}`}>{brand.label}</span>
+                                            <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={entry[brand.key]} onChange={(e) => handleEntryChange(brand.key, e.target.value)} className="text-2xl font-bold w-full bg-transparent focus:outline-none placeholder-slate-200" />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="bg-white rounded-2xl shadow-sm p-4 border border-slate-100 relative">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2"><LucideIcon name="file-text" size={14} /> Model Details</label>
+                                    <textarea value={entry.models} onChange={(e) => handleEntryChange('models', e.target.value)} placeholder="Format: Brand Model - Qty&#10;Ex: Samsung A05 - 1; Vivo Y200 - 2" className="w-full h-24 bg-slate-50 rounded-xl p-3 text-sm border border-slate-200 focus:bg-white transition-colors mb-3"></textarea>
+                                    
+                                    {/* LINEAR LAYOUT */}
+                                    <div className="flex flex-col gap-3">
+                                        <button onClick={parseAndPopulate} className="w-full bg-indigo-50 text-indigo-600 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform border border-indigo-200 hover:bg-indigo-100">
+                                            <LucideIcon name="zap" size={16} fill="currentColor" /> Auto-Fill & Save
+                                        </button>
+                                        <button onClick={saveEntry} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                                            <LucideIcon name="save" size={20} /> Save Entry Manually
+                                        </button>
+                                    </div>
+                                    
+                                    <p className="text-[10px] text-slate-400 mt-3 text-center">
+                                        Both buttons save your data instantly.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW: REPORTS (NEW FTD + MTD SPLIT) */}
+                        {view === 'report' && (
+                            <div className="animate-fade-in space-y-4">
+                                
+                                {/* 1. FTD CARD (Blue) */}
+                                <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+                                    <div className="absolute right-0 top-0 p-8 opacity-10 transform translate-x-4 -translate-y-4">
+                                        <LucideIcon name="sun" size={100} color="white" />
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-start mb-4 relative z-10">
+                                        <div>
+                                            <div className="flex items-center gap-1 mb-1">
+                                                <span className="bg-blue-500/50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">FTD</span>
+                                                <span className="text-blue-200 text-[10px]">{currentDate}</span>
+                                            </div>
+                                            <h2 className="text-4xl font-bold">{stats.ftd.total}</h2>
+                                            <p className="text-blue-100 text-xs">Total Sales Today</p>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <div className="bg-white/20 px-3 py-1.5 rounded-xl backdrop-blur-md mb-1 text-center min-w-[70px]">
+                                                <span className="text-[10px] uppercase font-bold text-blue-100 block">Sam Share</span>
+                                                <span className="text-xl font-bold">{stats.ftd.samShare}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Brand Grid FTD */}
+                                    <div className="grid grid-cols-4 gap-2 text-center relative z-10 mt-2">
+                                        {[
+                                            { l: 'Sam', v: stats.ftd.data.samsung || 0 }, { l: 'App', v: stats.ftd.data.iphone || 0 }, 
+                                            { l: 'Opp', v: stats.ftd.data.oppo || 0 }, { l: 'Viv', v: stats.ftd.data.vivo || 0 },
+                                            { l: 'Real', v: stats.ftd.data.realme || 0 }, { l: 'Mi', v: stats.ftd.data.mi || 0 }, 
+                                            { l: 'Moto', v: stats.ftd.data.moto || 0 }, { l: 'Oth', v: stats.ftd.data.other || 0 }
+                                        ].map((stat, i) => (
+                                            <div key={i} className="bg-black/20 rounded-lg p-1.5"><div className="text-[9px] text-blue-200 opacity-80">{stat.l}</div><div className="font-bold text-xs">{stat.v}</div></div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 2. MTD CARD (Indigo/Purple) */}
+                                <div className="bg-gradient-to-br from-indigo-600 to-violet-800 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+                                    <div className="absolute right-0 top-0 p-8 opacity-10 transform translate-x-4 -translate-y-4">
+                                        <LucideIcon name="calendar" size={100} color="white" />
+                                    </div>
+
+                                    <div className="flex justify-between items-start mb-4 relative z-10">
+                                        <div>
+                                            <div className="flex items-center gap-1 mb-1">
+                                                <span className="bg-indigo-500/50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">MTD</span>
+                                                <span className="text-indigo-200 text-[10px]">Current Month</span>
+                                            </div>
+                                            <h2 className="text-4xl font-bold">{stats.mtd.total}</h2>
+                                            <p className="text-indigo-100 text-xs">Total Sales Month</p>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <div className="bg-white/20 px-3 py-1.5 rounded-xl backdrop-blur-md mb-1 text-center min-w-[70px]">
+                                                <span className="text-[10px] uppercase font-bold text-indigo-100 block">Sam Share</span>
+                                                <span className="text-xl font-bold">{stats.mtd.samShare}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                     {/* Brand Grid MTD */}
+                                     <div className="grid grid-cols-4 gap-2 text-center relative z-10 mt-2">
+                                        {[
+                                            { l: 'Sam', v: stats.mtd.breakdown.samsung }, { l: 'App', v: stats.mtd.breakdown.iphone }, 
+                                            { l: 'Opp', v: stats.mtd.breakdown.oppo }, { l: 'Viv', v: stats.mtd.breakdown.vivo },
+                                            { l: 'Real', v: stats.mtd.breakdown.realme }, { l: 'Mi', v: stats.mtd.breakdown.mi }, 
+                                            { l: 'Moto', v: stats.mtd.breakdown.moto }, { l: 'Oth', v: stats.mtd.breakdown.other }
+                                        ].map((stat, i) => (
+                                            <div key={i} className="bg-black/20 rounded-lg p-1.5"><div className="text-[9px] text-indigo-200 opacity-80">{stat.l}</div><div className="font-bold text-xs">{stat.v}</div></div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Recent History List */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                        <h3 className="font-bold text-slate-700">Recent History</h3><span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">{Object.keys(salesData).length} days</span>
+                                    </div>
+                                    <div className="max-h-[50vh] overflow-y-auto no-scrollbar">
+                                        {Object.entries(salesData).sort((a, b) => new Date(b[0]) - new Date(a[0])).map(([date, data]) => (
+                                            <div key={date} onClick={() => { setCurrentDate(date); setView('entry'); }} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div><span className="font-bold text-slate-700">{date}</span></div>
+                                                    <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">{(Number(data.samsung||0)+Number(data.iphone||0)+Number(data.oppo||0)+Number(data.vivo||0)+Number(data.realme||0)+Number(data.mi||0)+Number(data.moto||0)+Number(data.other||0))} Sold</span>
+                                                </div>
+                                                <div className="flex gap-2 text-xs text-slate-400 overflow-x-auto no-scrollbar whitespace-nowrap">
+                                                    {data.samsung > 0 && <span>Sam: <b className="text-slate-600">{data.samsung}</b></span>}
+                                                    {data.iphone > 0 && <span>App: <b className="text-slate-600">{data.iphone}</b></span>}
+                                                    {data.oppo > 0 && <span>Opp: <b className="text-slate-600">{data.oppo}</b></span>}
+                                                    {data.mi > 0 && <span>Mi: <b className="text-slate-600">{data.mi}</b></span>}
+                                                    {Object.values(data).every(val => val == 0 || val == '') && data.models && <span><b className="text-red-400">0 Qty (Check Entry)</b></span>}
+                                                </div>
+                                                {data.models && <p className="text-[10px] text-slate-400 mt-2 truncate border-t border-slate-50 pt-2">{data.models}</p>}
+                                            </div>
+                                        ))}
+                                        {Object.keys(salesData).length === 0 && <div className="p-8 text-center text-slate-400 text-sm">No sales data recorded yet.</div>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW: IMPORT/EXPORT + RESET */}
+                        {view === 'import' && (
+                             <div className="animate-fade-in space-y-4">
+                                <div className="bg-indigo-600 rounded-3xl p-6 text-white shadow-lg mb-6">
+                                    <h2 className="text-xl font-bold mb-2 flex items-center gap-2"><LucideIcon name="database" size={24} /> Data Management</h2>
+                                    <p className="text-indigo-100 text-sm opacity-90">Import, Export, Backup, or Reset your system.</p>
+                                </div>
+
+                                {/* EXCEL IMPORT/EXPORT MODULE */}
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b border-slate-50 pb-2">
+                                        <LucideIcon name="sheet" size={18} className="text-green-600" /> Excel Import / Export
+                                    </h3>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <button onClick={exportToExcel} className="w-full bg-green-50 text-green-700 font-bold py-3 rounded-xl shadow-sm flex items-center justify-center gap-2 text-sm border border-green-200 hover:bg-green-100">
+                                            <LucideIcon name="share-2" size={16}/> Share / Export Report
+                                        </button>
+                                        
+                                        <div className="relative pt-2">
+                                            <p className="text-xs text-slate-400 mb-2 text-center uppercase tracking-wider font-bold">OR</p>
+                                            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <LucideIcon name="upload-cloud" size={24} className="text-slate-400 mb-1" />
+                                                    <p className="text-xs text-slate-500 font-medium">Click to Import .xlsx Report</p>
+                                                </div>
+                                                <input type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={handleExcelUpload} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* JSON BACKUP MODULE */}
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b border-slate-50 pb-2">
+                                        <LucideIcon name="save" size={18} className="text-blue-600" /> System Backup
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button onClick={downloadJSON} className="bg-white text-blue-600 font-bold py-3 rounded-xl shadow-sm flex items-center justify-center gap-2 text-sm border border-blue-100 hover:bg-blue-50">
+                                            <LucideIcon name="download" size={16}/> Download
+                                        </button>
+                                        <div className="relative">
+                                            <input type="file" id="json-restore" onChange={handleJsonRestore} className="hidden" accept=".json" />
+                                            <button onClick={() => document.getElementById('json-restore').click()} className="w-full bg-slate-800 text-white font-bold py-3 rounded-xl shadow-sm flex items-center justify-center gap-2 text-sm hover:bg-slate-700">
+                                                <LucideIcon name="refresh-ccw" size={16}/> Restore
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* DANGER ZONE (RESET) */}
+                                <div className="bg-red-50 p-5 rounded-2xl shadow-sm border border-red-100 mt-8">
+                                    <h3 className="font-bold text-red-700 mb-2 flex items-center gap-2">
+                                        <LucideIcon name="alert-octagon" size={18} /> Danger Zone
+                                    </h3>
+                                    <p className="text-xs text-red-400 mb-4">Resetting will wipe all your sales data and profile information.</p>
+                                    <button onClick={triggerResetAll} className="w-full bg-white text-red-600 font-bold py-3 rounded-xl shadow-sm flex items-center justify-center gap-2 text-sm border border-red-200 hover:bg-red-100">
+                                        <LucideIcon name="trash-2" size={16}/> Factory Reset App
+                                    </button>
+                                </div>
+                             </div>
+                        )}
+
+                        {/* VIEW: PROFILE */}
+                        {view === 'profile' && (
+                            <div className="animate-fade-in space-y-4 pb-20">
+                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center relative">
+                                    <div className="relative inline-block mb-4 group">
+                                        <div className="w-24 h-24 bg-blue-100 rounded-full mx-auto flex items-center justify-center overflow-hidden border-4 border-white shadow-sm">
+                                            {profile.avatar ? <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover" /> : <LucideIcon name="user" size={40} className="text-blue-600" />}
+                                        </div>
+                                        <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer shadow-md hover:bg-blue-700 transition-colors">
+                                            <LucideIcon name="camera" size={16} /><input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+                                        </label>
+                                    </div>
+                                    <h2 className="text-xl font-bold text-slate-800">Your Profile</h2>
+                                    <p className="text-slate-400 text-sm">Manage your store and manager details</p>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">SEC Name</label><input type="text" placeholder="Enter Name" className="w-full p-3 bg-slate-50 rounded-xl border-slate-200 border mt-1 font-medium" value={profile.name} onChange={(e) => setProfile({...profile, name: e.target.value})} /></div>
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">SEC Code</label><input type="text" placeholder="Code" className="w-full p-3 bg-slate-50 rounded-xl border-slate-200 border mt-1 font-medium" value={profile.code} onChange={(e) => setProfile({...profile, code: e.target.value})} /></div>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-2 opacity-10"><LucideIcon name="briefcase" size={100} /></div>
+                                    <h3 className="font-bold text-slate-700 border-b border-slate-100 pb-2">Manager Details</h3>
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Manager Name</label><input type="text" placeholder="Enter Manager Name" className="w-full p-3 bg-slate-50 rounded-xl border-slate-200 border mt-1 font-medium focus:bg-white" value={profile.managerName} onChange={(e) => setProfile({...profile, managerName: e.target.value})} /></div>
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Manager Code</label><input type="text" placeholder="Manager Code" className="w-full p-3 bg-slate-50 rounded-xl border-slate-200 border mt-1 font-medium focus:bg-white" value={profile.managerCode} onChange={(e) => setProfile({...profile, managerCode: e.target.value})} /></div>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                                    <h3 className="font-bold text-slate-700 border-b border-slate-100 pb-2">Outlet Details</h3>
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Outlet Name</label><input type="text" placeholder="Store Name" className="w-full p-3 bg-slate-50 rounded-xl border-slate-200 border mt-1 font-medium" value={profile.outlet} onChange={(e) => setProfile({...profile, outlet: e.target.value})} /></div>
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Outlet Code</label><input type="text" placeholder="Store Code" className="w-full p-3 bg-slate-50 rounded-xl border-slate-200 border mt-1 font-medium" value={profile.outletCode} onChange={(e) => setProfile({...profile, outletCode: e.target.value})} /></div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button onClick={triggerResetProfile} className="w-full bg-white text-slate-500 font-bold p-4 rounded-xl shadow-sm border border-slate-200 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                                        <LucideIcon name="rotate-ccw" size={20} /> Clear
+                                    </button>
+                                    <button onClick={handleManualProfileSave} className="w-full bg-blue-600 text-white font-bold p-4 rounded-xl shadow-lg shadow-blue-600/30 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                                        <LucideIcon name="save" size={20} /> Save
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Navigation Bar */}
+                    <nav className="fixed bottom-0 w-full max-w-md bg-white border-t border-slate-200 pb-safe z-30 flex justify-around items-center p-2 shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
+                        {[{ id: 'entry', icon: 'plus-circle', label: 'Entry' }, { id: 'report', icon: 'bar-chart', label: 'Report' }, { id: 'import', icon: 'folder-up', label: 'Import' }, { id: 'profile', icon: 'user', label: 'Profile' }].map(tab => (
+                            <button key={tab.id} onClick={() => setView(tab.id)} className={`flex flex-col items-center p-2 rounded-xl transition-all duration-300 w-16 ${view === tab.id ? 'text-blue-600 scale-105 bg-blue-50' : 'text-slate-400'}`}>
+                                <LucideIcon name={tab.icon} size={24} /><span className="text-[10px] font-bold mt-1">{tab.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<DailySalesTracker />);
+    </script>
+</body>
+</html>
+

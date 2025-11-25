@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEC Incentive Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        /* Main Layout */
+        .card { background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1rem; margin-bottom: 1rem; }
+        .section-title { font-size: 1.125rem; font-weight: 700; color: #1f2937; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; }
+        
+        /* Form Elements */
+        .input-group { margin-bottom: 0.75rem; }
+        .input-label { display: block; font-size: 0.875rem; font-weight: 500; color: #4b5563; margin-bottom: 0.25rem; }
+        .input-field { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; transition: border-color 0.2s; }
+        .input-field:focus { outline: none; border-color: #2563eb; ring: 2px solid #2563eb; }
+        
+        /* Buttons */
+        .btn { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-danger { background-color: #ef4444; color: white; }
+        .btn-secondary { background-color: #e5e7eb; color: #374151; }
+        .btn-add { background-color: #10b981; color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+        
+        /* Modals */
+        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); overflow-y: auto; }
+        .modal-content { background-color: white; margin: 2% auto; padding: 0; border-radius: 0.5rem; width: 95%; max-width: 800px; position: relative; display: flex; flex-direction: column; max-height: 90vh; }
+        .modal-header { padding: 1rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 1rem; overflow-y: auto; }
+        .modal-footer { padding: 1rem; border-top: 1px solid #e5e7eb; display: flex; gap: 1rem; background: #f9fafb; border-radius: 0 0 0.5rem 0.5rem; }
+
+        /* Config Visual Editor Styles */
+        .config-section { margin-bottom: 1.5rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; overflow: hidden; }
+        .config-header { background: #f3f4f6; padding: 0.75rem; font-weight: 600; color: #374151; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .config-header:hover { background: #e5e7eb; }
+        .config-body { padding: 1rem; background: white; display: none; } /* Hidden by default */
+        .config-body.active { display: block; }
+        
+        .config-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; }
+        .config-row input { flex: 1; font-size: 0.8rem; padding: 0.3rem; }
+        .config-row label { font-size: 0.75rem; color: #6b7280; min-width: 70px; } /* Increased width slightly for labels */
+
+        .tab-nav { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+        .tab-btn { padding: 0.5rem 1rem; white-space: nowrap; border-radius: 0.25rem; font-size: 0.875rem; color: #6b7280; cursor: pointer; }
+        .tab-btn.active { background: #e0e7ff; color: #2563eb; font-weight: 600; }
+
+    </style>
+</head>
+<body class="pb-24">
+
+    <!-- Header -->
+    <header class="bg-blue-800 text-white p-4 sticky top-0 z-40 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold">Samsung Incentive</h1>
+            </div>
+            <button onclick="openConfig()" class="text-white hover:text-blue-200 flex items-center gap-2 text-sm bg-blue-700 px-3 py-1 rounded">
+                <i class="fas fa-cog"></i> Settings
+            </button>
+        </div>
+    </header>
+
+    <div class="container mx-auto p-2 max-w-3xl mt-2">
+
+        <!-- Global Configuration -->
+        <div class="card border-l-4 border-blue-500">
+            <div class="section-title text-blue-700"><i class="fas fa-user-cog mr-2"></i> Consultant Details</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="input-group">
+                    <label class="input-label">Channel Type</label>
+                    <select id="channelType" class="input-field" onchange="toggleFields()">
+                        <option value="standard">GT / MR (Standard)</option>
+                        <option value="sis_pro">SIS Pro / SIS Plus / Below</option>
+                        <option value="exclusive">Exclusive (SES/SDP)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Consultant Status</label>
+                    <select id="userStatus" class="input-field">
+                        <option value="existing">Existing SEC</option>
+                        <option value="new_joinee">New Joinee (Joined > Aug 31)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Target Volume (Units)</label>
+                    <input type="number" id="targetVolume" class="input-field" placeholder="e.g. 50">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Achieved Volume (Units)</label>
+                    <input type="number" id="achievedVolume" class="input-field" placeholder="e.g. 45" oninput="calculateAchievement()">
+                    <p id="achievementDisplay" class="text-xs text-right mt-1 font-bold text-gray-500">0%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. Smartphone Incentive -->
+        <div class="card">
+            <div class="section-title">
+                <span><i class="fas fa-mobile-alt mr-2 text-blue-600"></i> Smartphones</span>
+                <button onclick="addSmartphoneRow()" class="btn btn-add"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div id="smartphoneContainer"></div>
+            <div class="text-xs text-gray-500 mt-2 bg-yellow-50 p-2 rounded">
+                *F/M Series: 50% payout. Exceptions apply. Gate: 40 (Std) / 35 (SIS/New).
+            </div>
+        </div>
+
+        <!-- 2. Wearables -->
+        <div class="card">
+            <div class="section-title">
+                <span><i class="fas fa-clock mr-2 text-purple-600"></i> Wearables</span>
+                <button onclick="addWearableRow()" class="btn btn-add"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div id="wearableContainer"></div>
+        </div>
+
+        <!-- 3. Tablets -->
+        <div class="card">
+            <div class="section-title">
+                <span><i class="fas fa-tablet-alt mr-2 text-green-600"></i> Tablets</span>
+                <button onclick="addTabletRow()" class="btn btn-add"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div id="tabletContainer"></div>
+        </div>
+
+        <!-- 4. Note PC -->
+        <div class="card">
+            <div class="section-title">
+                <span><i class="fas fa-laptop mr-2 text-gray-600"></i> Note PC</span>
+                <button onclick="addNotePCRow()" class="btn btn-add"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div id="notePCContainer"></div>
+        </div>
+
+        <!-- 5. Samsung Care+ -->
+        <div class="card">
+            <div class="section-title">
+                <span><i class="fas fa-shield-alt mr-2 text-red-600"></i> Samsung Care+</span>
+                <button onclick="addCarePlusRow()" class="btn btn-add"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div id="carePlusContainer"></div>
+            
+            <div class="mt-4 border-t pt-4">
+                <p class="font-bold text-sm mb-2 text-gray-700">Special Attach Kickers</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="input-group">
+                        <label class="input-label">FF7 Attach %</label>
+                        <select id="ff7Attach" class="input-field">
+                            <option value="0">< 25%</option>
+                            <option value="400">25% - 99% (₹400)</option>
+                            <option value="600">>= 25% + Vol (₹600)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">FF7 Units Sold</label>
+                        <input type="number" id="ff7Units" class="input-field" placeholder="0">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">S25 Attach %</label>
+                        <select id="s25Attach" class="input-field">
+                            <option value="0">< 15%</option>
+                            <option value="300">15% - 99% (₹300)</option>
+                            <option value="500">>= 15% + Vol (₹500)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">S25 Units Sold</label>
+                        <input type="number" id="s25Units" class="input-field" placeholder="0">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Bundles -->
+        <div class="card">
+            <div class="section-title"><i class="fas fa-box-open mr-2 text-orange-600"></i> Bundle Kicker</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2" id="bundleInputs"></div>
+        </div>
+
+        <!-- 7. Accessories -->
+        <div class="card">
+            <div class="section-title"><i class="fas fa-headphones mr-2 text-indigo-600"></i> Accessories</div>
+            <div id="accExclusive" class="hidden">
+                <div class="input-group">
+                    <label class="input-label">Target Value (₹)</label>
+                    <input type="number" id="accTarget" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Achieved Value (₹)</label>
+                    <input type="number" id="accAchieved" class="input-field">
+                </div>
+            </div>
+            <div id="accOther" class="hidden">
+                <div class="input-group">
+                    <label class="input-label">Accessory Sellout Value (₹)</label>
+                    <input type="number" id="accSellout" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Total SP Sellout Value (₹)</label>
+                    <input type="number" id="spTotalValue" class="input-field">
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Floating Calculate Button -->
+    <div class="fixed bottom-4 left-0 w-full px-4">
+        <button onclick="calculate()" class="btn btn-primary w-full max-w-3xl mx-auto block shadow-lg text-lg py-3">
+            Calculate Incentive
+        </button>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="text-xl font-bold text-gray-800">Incentive Breakdown</h2>
+                <button onclick="closeModal('resultModal')" class="text-gray-500 hover:text-red-500"><i class="fas fa-times fa-lg"></i></button>
+            </div>
+            <div class="modal-body" id="resultBody"></div>
+            <div class="modal-footer">
+                <button onclick="downloadResults()" class="btn btn-secondary flex-1"><i class="fas fa-download mr-2"></i>Export</button>
+                <button onclick="closeModal('resultModal')" class="btn btn-primary flex-1">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visual Configuration Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header bg-blue-50">
+                <h2 class="text-lg font-bold text-blue-800">Scheme Configuration</h2>
+                <button onclick="closeModal('configModal')" class="text-gray-500"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Tabs -->
+                <div class="tab-nav">
+                    <div class="tab-btn active" onclick="switchConfigTab('cfg-sp')">Smartphones</div>
+                    <div class="tab-btn" onclick="switchConfigTab('cfg-wr')">Wearables</div>
+                    <div class="tab-btn" onclick="switchConfigTab('cfg-tb')">Tabs/PC</div>
+                    <div class="tab-btn" onclick="switchConfigTab('cfg-cp')">Care+</div>
+                    <div class="tab-btn" onclick="switchConfigTab('cfg-misc')">Misc</div>
+                </div>
+
+                <!-- Config Content Container -->
+                <div id="configFormContainer">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button onclick="resetConfig()" class="btn btn-danger"><i class="fas fa-undo mr-1"></i> Reset Defaults</button>
+                <button onclick="saveConfigFromUI()" class="btn btn-primary flex-1"><i class="fas fa-save mr-1"></i> Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- Default Configuration (Source of Truth) ---
+const defaultConfig = {
+    smartphones: {
+        slabs: [
+            { min: 100000, max: 9999999, rate: 700, label: ">= 100k" },
+            { min: 70000, max: 99999, rate: 600, label: "70k - 100k" },
+            { min: 40000, max: 69999, rate: 500, label: "40k - 70k" },
+            { min: 30000, max: 39999, rate: 300, label: "30k - 40k" },
+            { min: 20000, max: 29999, rate: 200, label: "20k - 30k" },
+            { min: 15000, max: 19999, rate: 100, label: "15k - 20k" },
+            { min: 10000, max: 14999, rate: 75, label: "10k - 15k" },
+            { min: 0, max: 9999, rate: 25, label: "< 10k" }
+        ],
+        fm_series_exception: {
+            rate_multiplier: 0.5
+        },
+        min_target_achievement: 0.80
+    },
+    wearables: {
+        models: [
+            { id: "watch_ultra", name: "Watch Ultra / Watch 8 Classic / 8", rate: 1200 },
+            { id: "watch_other", name: "Other Watches", rate: 800 },
+            { id: "buds3_pro", name: "Buds3 Pro", rate: 600 },
+            { id: "buds3_fe", name: "Buds3 / FE", rate: 500 },
+            { id: "buds_other", name: "Other Buds", rate: 400 },
+            { id: "ring", name: "Galaxy Ring (Tiered)", rate: 0 } // Rate 0 implies tiered logic in code
+        ]
+    },
+    tablets: {
+        slabs: [
+            { min: 70000, rate: 800, label: ">= 70k" },
+            { min: 40000, rate: 600, label: "40k - 70k" },
+            { min: 30000, rate: 500, label: "30k - 40k" },
+            { min: 20000, rate: 300, label: "20k - 30k" },
+            { min: 15000, rate: 200, label: "15k - 20k" },
+            { min: 10000, rate: 100, label: "10k - 15k" }
+        ],
+        focus_models: [
+            { name: "S11 Ultra", rate: 1500 },
+            { name: "S11 / S10+ / FE / FE+", rate: 1000 },
+            { name: "S10 Lite", rate: 750 },
+            { name: "A11 Plus", rate: 400 }
+        ],
+        cap: 20000
+    },
+    notepc: {
+        models: [
+            { name: "GB5 Pro / 360", rate: 3000 },
+            { name: "GB5 360 / GB4 Pro / Ultra", rate: 2500 },
+            { name: "GB5 / GB3 360 / GB4 C7", rate: 1750 },
+            { name: "GB4 Edge / C5 / GB3 / Go", rate: 1250 },
+            { name: "Other Models", rate: 1000 }
+        ],
+        cap: 50000
+    },
+    careplus: {
+        slabs: [
+            { min: 100000, rate: 400, label: "> 1L" },
+            { min: 70000, rate: 350, label: "70k - 1L" },
+            { min: 40000, rate: 300, label: "40k - 70k" },
+            { min: 30000, rate: 200, label: "30k - 40k" },
+            { min: 20000, rate: 120, label: "20k - 30k" },
+            { min: 10000, rate: 100, label: "10k - 20k" },
+            { min: 0, rate: 50, label: "< 10k" }
+        ],
+        gate: 3
+    },
+    bundles: {
+        exclusive: [
+            { name: "Wearable + Hearable + Acc", rate: 1000 },
+            { name: "Wearable + Hearable", rate: 750 },
+            { name: "Wearable", rate: 400 },
+            { name: "Hearable", rate: 250 },
+            { name: "Accessory", rate: 100 }
+        ],
+        other: [
+            { name: "Wearable + Hearable", rate: 750 },
+            { name: "Wearable", rate: 400 },
+            { name: "Hearable", rate: 250 }
+        ],
+        cap_other: 10000
+    },
+    global_cap: 75000
+};
+
+// Load Config
+let config = JSON.parse(localStorage.getItem('secConfig_nov25_v3')) || JSON.parse(JSON.stringify(defaultConfig));
+
+// --- Initialization ---
+document.addEventListener('DOMContentLoaded', () => {
+    addSmartphoneRow();
+    addWearableRow();
+    toggleFields();
+});
+
+// --- UI Helper Functions ---
+function toggleFields() {
+    const channel = document.getElementById('channelType').value;
+    const accExclusive = document.getElementById('accExclusive');
+    const accOther = document.getElementById('accOther');
+    const bundleContainer = document.getElementById('bundleInputs');
+
+    // Bundle Inputs
+    bundleContainer.innerHTML = '';
+    const bundles = channel === 'exclusive' ? config.bundles.exclusive : config.bundles.other;
+    bundles.forEach((b) => {
+        bundleContainer.innerHTML += `
+            <div class="input-group border p-2 rounded bg-white">
+                <label class="input-label text-xs">${b.name} (₹${b.rate})</label>
+                <input type="number" data-rate="${b.rate}" class="bundle-input input-field h-8 text-sm" placeholder="Qty">
+            </div>
+        `;
+    });
+
+    // Accessory Inputs
+    if (channel === 'exclusive') {
+        accExclusive.classList.remove('hidden');
+        accOther.classList.add('hidden');
+    } else {
+        accExclusive.classList.add('hidden');
+        accOther.classList.remove('hidden');
+    }
+}
+
+function calculateAchievement() {
+    const t = parseFloat(document.getElementById('targetVolume').value) || 0;
+    const a = parseFloat(document.getElementById('achievedVolume').value) || 0;
+    const display = document.getElementById('achievementDisplay');
+    if(t > 0) {
+        const p = ((a/t)*100).toFixed(1);
+        display.innerText = `${p}% Achieved`;
+        display.style.color = p < 80 ? 'red' : 'green';
+    } else {
+        display.innerText = '0%';
+    }
+}
+
+// --- Dynamic Row Generators ---
+function createDeleteBtn(onclickFn) {
+    return `<button onclick="${onclickFn}" class="text-red-500 hover:text-red-700 ml-2 p-2"><i class="fas fa-trash"></i></button>`;
+}
+
+function addSmartphoneRow() {
+    const container = document.getElementById('smartphoneContainer');
+    const id = Date.now();
+    const options = config.smartphones.slabs.map(s => `<option value="${s.rate}">${s.label} (₹${s.rate})</option>`).join('');
+    
+    const html = `
+        <div id="sp-${id}" class="flex gap-2 mb-2 items-start bg-gray-50 p-2 rounded border">
+            <div class="flex-1">
+                <label class="text-xs text-gray-500">Price Slab</label>
+                <select class="sp-slab input-field text-sm">${options}</select>
+                <div class="flex items-center mt-1">
+                    <input type="checkbox" class="sp-fm mr-1"> <label class="text-xs text-gray-600">F/M Series (50%)</label>
+                </div>
+            </div>
+            <div class="w-20">
+                <label class="text-xs text-gray-500">Qty</label>
+                <input type="number" class="sp-qty input-field text-sm" placeholder="0">
+            </div>
+            ${createDeleteBtn(`removeElement('sp-${id}')`)}
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+function addWearableRow() {
+    const container = document.getElementById('wearableContainer');
+    const id = Date.now();
+    const options = config.wearables.models.map(m => `<option value="${m.id}">${m.name} ${m.rate > 0 ? '(₹'+m.rate+')' : ''}</option>`).join('');
+    
+    const html = `
+        <div id="wr-${id}" class="flex gap-2 mb-2 items-center bg-gray-50 p-2 rounded border">
+            <div class="flex-1"><select class="wr-model input-field text-sm">${options}</select></div>
+            <div class="w-20"><input type="number" class="wr-qty input-field text-sm" placeholder="Qty"></div>
+            ${createDeleteBtn(`removeElement('wr-${id}')`)}
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+function addTabletRow() {
+    const container = document.getElementById('tabletContainer');
+    const id = Date.now();
+    let options = `<optgroup label="Focus Models">`;
+    config.tablets.focus_models.forEach((m, i) => options += `<option value="focus_${i}">${m.name} (₹${m.rate})</option>`);
+    options += `</optgroup><optgroup label="Price Slabs">`;
+    config.tablets.slabs.forEach((s, i) => options += `<option value="slab_${i}">${s.label} (₹${s.rate})</option>`);
+    options += `</optgroup>`;
+
+    const html = `
+        <div id="tb-${id}" class="flex gap-2 mb-2 items-center bg-gray-50 p-2 rounded border">
+            <div class="flex-1"><select class="tb-model input-field text-sm">${options}</select></div>
+            <div class="w-20"><input type="number" class="tb-qty input-field text-sm" placeholder="Qty"></div>
+            ${createDeleteBtn(`removeElement('tb-${id}')`)}
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+function addNotePCRow() {
+    const container = document.getElementById('notePCContainer');
+    const id = Date.now();
+    const options = config.notepc.models.map(m => `<option value="${m.rate}">${m.name} (₹${m.rate})</option>`).join('');
+    const html = `
+        <div id="npc-${id}" class="flex gap-2 mb-2 items-center bg-gray-50 p-2 rounded border">
+            <div class="flex-1"><select class="npc-model input-field text-sm">${options}</select></div>
+            <div class="w-20"><input type="number" class="npc-qty input-field text-sm" placeholder="Qty"></div>
+            ${createDeleteBtn(`removeElement('npc-${id}')`)}
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+function addCarePlusRow() {
+    const container = document.getElementById('carePlusContainer');
+    const id = Date.now();
+    const options = config.careplus.slabs.map(s => `<option value="${s.rate}">${s.label} (₹${s.rate})</option>`).join('');
+    const html = `
+        <div id="cp-${id}" class="flex gap-2 mb-2 items-center bg-gray-50 p-2 rounded border">
+            <div class="flex-1">
+                <select class="cp-slab input-field text-sm">${options}</select>
+                <div class="mt-1"><input type="checkbox" class="cp-protectmax"> <label class="text-xs text-blue-600">ProtectMax (1.25x)</label></div>
+            </div>
+            <div class="w-20"><input type="number" class="cp-qty input-field text-sm" placeholder="Qty"></div>
+            ${createDeleteBtn(`removeElement('cp-${id}')`)}
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+function removeElement(id) { document.getElementById(id).remove(); }
+
+// --- Config Visual Editor Logic ---
+function openConfig() {
+    renderConfigUI();
+    document.getElementById('configModal').style.display = 'block';
+    switchConfigTab('cfg-sp'); // Default tab
+}
+
+function switchConfigTab(tabId) {
+    // Hide all tabs
+    document.querySelectorAll('.config-body').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    // Show selected
+    document.getElementById(tabId).style.display = 'block';
+    
+    // Highlight button (simple logic finding index based on ID text roughly)
+    const btns = document.querySelectorAll('.tab-btn');
+    if(tabId === 'cfg-sp') btns[0].classList.add('active');
+    if(tabId === 'cfg-wr') btns[1].classList.add('active');
+    if(tabId === 'cfg-tb') btns[2].classList.add('active');
+    if(tabId === 'cfg-cp') btns[3].classList.add('active');
+    if(tabId === 'cfg-misc') btns[4].classList.add('active');
+}
+
+function renderConfigUI() {
+    const container = document.getElementById('configFormContainer');
+    
+    // Helper to create Input Row
+    const createInput = (label, val, cls) => `
+        <div class="config-row">
+            <label>${label}</label>
+            <input type="text" value="${val}" class="${cls} border rounded px-2 py-1 w-full text-sm">
+        </div>`;
+
+    // 1. Smartphones Tab
+    let spHtml = `<div id="cfg-sp" class="config-body active"><h3 class="font-bold mb-2">Smartphone Slabs</h3>`;
+    config.smartphones.slabs.forEach((s, i) => {
+        spHtml += `<div class="border p-2 rounded mb-2 bg-gray-50">
+            ${createInput('Label', s.label, `sp-label-${i}`)}
+            ${createInput('Rate (₹)', s.rate, `sp-rate-${i}`)}
+        </div>`;
+    });
+    spHtml += `</div>`;
+
+    // 2. Wearables Tab (EDITED: Names are now editable)
+    let wrHtml = `<div id="cfg-wr" class="config-body"><h3 class="font-bold mb-2">Wearable Rates</h3>`;
+    config.wearables.models.forEach((m, i) => {
+        wrHtml += `<div class="border p-2 rounded mb-2 bg-gray-50">
+            ${createInput('Model Name', m.name, `wr-name-${i}`)}
+            ${createInput('Rate (₹)', m.rate, `wr-rate-${i}`)}
+        </div>`;
+    });
+    wrHtml += `</div>`;
+
+    // 3. Tablets / NPC Tab
+    let tbHtml = `<div id="cfg-tb" class="config-body">
+        <h3 class="font-bold mb-2">Tablet Slabs</h3>`;
+    config.tablets.slabs.forEach((s, i) => {
+         tbHtml += `<div class="border p-2 rounded mb-2 bg-gray-50 text-xs flex gap-2 items-center">
+            <span class="w-1/3">${s.label}</span>
+            <input type="number" value="${s.rate}" class="tb-slab-rate-${i} border rounded p-1 w-20">
+         </div>`;
+    });
+    tbHtml += `<h3 class="font-bold mt-4 mb-2">Note PC Models</h3>`;
+    config.notepc.models.forEach((m, i) => {
+         tbHtml += `<div class="border p-2 rounded mb-2 bg-gray-50">
+            ${createInput('Name', m.name, `npc-name-${i}`)}
+            ${createInput('Rate (₹)', m.rate, `npc-rate-${i}`)}
+         </div>`;
+    });
+    tbHtml += `</div>`;
+
+    // 4. Care+ Tab
+    let cpHtml = `<div id="cfg-cp" class="config-body"><h3 class="font-bold mb-2">Care+ Slabs</h3>`;
+    config.careplus.slabs.forEach((s, i) => {
+        cpHtml += `<div class="border p-2 rounded mb-2 bg-gray-50 flex items-center gap-2">
+            <span class="text-xs w-1/3">${s.label}</span>
+            <input type="number" value="${s.rate}" class="cp-rate-${i} border rounded p-1 w-full">
+        </div>`;
+    });
+    cpHtml += `</div>`;
+
+    // 5. Misc Tab
+    let miscHtml = `<div id="cfg-misc" class="config-body">
+        <h3 class="font-bold mb-2">Global Caps</h3>
+        ${createInput('SP+WR Cap (₹)', config.global_cap, 'global-cap')}
+        ${createInput('Tablet Cap (₹)', config.tablets.cap, 'tb-cap')}
+        ${createInput('NotePC Cap (₹)', config.notepc.cap, 'npc-cap')}
+    </div>`;
+
+    container.innerHTML = spHtml + wrHtml + tbHtml + cpHtml + miscHtml;
+}
+
+function saveConfigFromUI() {
+    // Save Smartphones
+    config.smartphones.slabs.forEach((s, i) => {
+        s.label = document.querySelector(`.sp-label-${i}`).value;
+        s.rate = parseFloat(document.querySelector(`.sp-rate-${i}`).value);
+    });
+
+    // Save Wearables (EDITED: Now saving name)
+    config.wearables.models.forEach((m, i) => {
+        m.name = document.querySelector(`.wr-name-${i}`).value;
+        m.rate = parseFloat(document.querySelector(`.wr-rate-${i}`).value);
+    });
+
+    // Save Tablets Slabs
+    config.tablets.slabs.forEach((s, i) => {
+        s.rate = parseFloat(document.querySelector(`.tb-slab-rate-${i}`).value);
+    });
+
+    // Save NotePC
+    config.notepc.models.forEach((m, i) => {
+        m.name = document.querySelector(`.npc-name-${i}`).value;
+        m.rate = parseFloat(document.querySelector(`.npc-rate-${i}`).value);
+    });
+
+    // Save Care+
+    config.careplus.slabs.forEach((s, i) => {
+        s.rate = parseFloat(document.querySelector(`.cp-rate-${i}`).value);
+    });
+
+    // Save Caps
+    config.global_cap = parseFloat(document.querySelector('.global-cap').value);
+    config.tablets.cap = parseFloat(document.querySelector('.tb-cap').value);
+    config.notepc.cap = parseFloat(document.querySelector('.npc-cap').value);
+
+    localStorage.setItem('secConfig_nov25_v3', JSON.stringify(config));
+    alert("Configuration Saved!");
+    location.reload();
+}
+
+function resetConfig() {
+    if(confirm("Reset all settings to default Nov 2025 Scheme?")) {
+        localStorage.removeItem('secConfig_nov25_v3');
+        location.reload();
+    }
+}
+
+// --- Main Calculation ---
+function calculate() {
+    const channel = document.getElementById('channelType').value;
+    const userStatus = document.getElementById('userStatus').value;
+    const targetVol = parseFloat(document.getElementById('targetVolume').value) || 0;
+    const achVol = parseFloat(document.getElementById('achievedVolume').value) || 0;
+    
+    let logs = []; 
+
+    // 1. SP
+    let spTotal = 0, spUnits = 0;
+    document.querySelectorAll('#smartphoneContainer > div').forEach(row => {
+        const qty = parseInt(row.querySelector('.sp-qty').value) || 0;
+        const rate = parseFloat(row.querySelector('.sp-slab').value);
+        const isFM = row.querySelector('.sp-fm').checked;
+        if (qty > 0) {
+            spUnits += qty;
+            let finalRate = isFM ? rate * config.smartphones.fm_series_exception.rate_multiplier : rate;
+            spTotal += qty * finalRate;
+        }
+    });
+
+    // Gate
+    let gateStatus = "Missed", gatePayoutPct = 0;
+    let gateType = (channel === 'sis_pro' || userStatus === 'new_joinee') ? 'sis_pro' : 'standard';
+    const gateRules = gateType === 'sis_pro' ? 
+        [{min: 35, p: 1.0}, {min: 30, p: 0.75}, {min: 25, p: 0.5}] : 
+        [{min: 40, p: 1.0}, {min: 35, p: 0.75}, {min: 30, p: 0.6}];
+
+    for(let r of gateRules) { if(spUnits >= r.min) { gatePayoutPct = r.p; gateStatus = (r.p*100)+"%"; break; } }
+    
+    let spFinal = spTotal * gatePayoutPct;
+    
+    // <80% Rule
+    const achPct = targetVol > 0 ? achVol / targetVol : 0;
+    if (channel !== 'sis_pro' && userStatus !== 'new_joinee' && achPct < config.smartphones.min_target_achievement) {
+        spFinal = 0; gateStatus = "Target < 80% (0)";
+    }
+    logs.push({c: "Smartphones", u: spUnits, v: spFinal, n: gateStatus});
+
+    // 2. Wearables
+    let wrTotal = 0;
+    let wrCounts = {};
+    document.querySelectorAll('#wearableContainer > div').forEach(row => {
+        const id = row.querySelector('.wr-model').value;
+        const qty = parseInt(row.querySelector('.wr-qty').value) || 0;
+        wrCounts[id] = (wrCounts[id] || 0) + qty;
+    });
+    
+    for (const [id, qty] of Object.entries(wrCounts)) {
+        if(qty <= 0) continue;
+        const model = config.wearables.models.find(m => m.id === id);
+        // Ring Logic hardcoded as it is complex tiered
+        if (id === 'ring') {
+            if(qty === 1) wrTotal += 3000;
+            else if(qty === 2) wrTotal += 4000;
+            else wrTotal += 5000;
+        } else {
+            wrTotal += qty * model.rate;
+        }
+    }
+    
+    // SP+WR Cap
+    let combined = spFinal + wrTotal;
+    if(combined > config.global_cap) combined = config.global_cap;
+    logs.push({c: "Wearables", u: 0, v: wrTotal, n: ""});
+    if(combined < (spFinal + wrTotal)) logs.push({c: "Cap Adj (SP+WR)", u: 0, v: combined - (spFinal+wrTotal), n: "Max 75k"});
+
+    // 3. Tabs
+    let tbTotal = 0, tbUnits = 0, a11Qty = 0, otherTbInc = 0;
+    document.querySelectorAll('#tabletContainer > div').forEach(row => {
+        const val = row.querySelector('.tb-model').value;
+        const qty = parseInt(row.querySelector('.tb-qty').value) || 0;
+        if(qty > 0) {
+            tbUnits += qty;
+            if (val.startsWith('focus_')) {
+                const idx = parseInt(val.split('_')[1]);
+                const model = config.tablets.focus_models[idx];
+                if(model.name.includes("A11") && !model.name.includes("Plus")) a11Qty += qty;
+                else otherTbInc += qty * model.rate;
+            } else {
+                const idx = parseInt(val.split('_')[1]);
+                otherTbInc += qty * config.tablets.slabs[idx].rate;
+            }
+        }
+    });
+    // A11 logic
+    let a11Inc = 0;
+    if(a11Qty === 1) a11Inc = 250; else if(a11Qty === 2) a11Inc = 300; else if(a11Qty >= 3) a11Inc = 400;
+    tbTotal = otherTbInc + a11Inc;
+    let tbFinal = Math.min(tbTotal, config.tablets.cap);
+    logs.push({c: "Tablets", u: tbUnits, v: tbFinal, n: tbFinal < tbTotal ? "Capped" : ""});
+
+    // 4. NPC
+    let npcTotal = 0, npcUnits = 0;
+    document.querySelectorAll('#notePCContainer > div').forEach(row => {
+        const rate = parseFloat(row.querySelector('.npc-model').value);
+        const qty = parseInt(row.querySelector('.npc-qty').value) || 0;
+        if(qty>0) { npcUnits+=qty; npcTotal+=qty*rate; }
+    });
+    let npcFinal = Math.min(npcTotal, config.notepc.cap);
+    logs.push({c: "Note PC", u: npcUnits, v: npcFinal, n: npcFinal < npcTotal ? "Capped" : ""});
+
+    // 5. Care+
+    let cpTotal = 0, cpUnits = 0;
+    document.querySelectorAll('#carePlusContainer > div').forEach(row => {
+        const rate = parseFloat(row.querySelector('.cp-slab').value);
+        const qty = parseInt(row.querySelector('.cp-qty').value) || 0;
+        const isPM = row.querySelector('.cp-protectmax').checked;
+        if(qty>0) {
+            cpUnits += qty;
+            cpTotal += qty * (isPM ? rate * 1.25 : rate);
+        }
+    });
+    if(cpUnits >= 8) cpTotal *= 1.2; // Vol Kicker
+    if(cpUnits < config.careplus.gate) cpTotal = 0; // Gate
+    
+    // Kickers
+    const ff7 = (parseInt(document.getElementById('ff7Units').value)||0) * parseFloat(document.getElementById('ff7Attach').value);
+    const s25 = (parseInt(document.getElementById('s25Units').value)||0) * parseFloat(document.getElementById('s25Attach').value);
+    let cpFinal = cpTotal + ff7 + s25;
+    logs.push({c: "Samsung Care+", u: cpUnits, v: cpFinal, n: cpUnits<3?"Gate Missed":""});
+
+    // 6. Bundles
+    let bunTotal = 0;
+    document.querySelectorAll('.bundle-input').forEach(i => bunTotal += (parseInt(i.value)||0)*parseFloat(i.getAttribute('data-rate')));
+    if(channel !== 'exclusive') bunTotal = Math.min(bunTotal, config.bundles.cap_other);
+    logs.push({c: "Bundles", u:0, v: bunTotal, n: ""});
+
+    // 7. Acc
+    let accTotal = 0;
+    const accAch = parseFloat(document.getElementById('accAchieved').value)||0;
+    const accTgt = parseFloat(document.getElementById('accTarget').value)||0;
+    if(channel === 'exclusive' && accTgt > 0) {
+        const pct = (accAch/accTgt)*100;
+        if(pct>=120) accTotal=3000; else if(pct>=110) accTotal=2000; else if(pct>=100) accTotal=1000; else if(pct>=90) accTotal=500;
+    } else if(channel !== 'exclusive') {
+        const accSell = parseFloat(document.getElementById('accSellout').value)||0;
+        const spVal = parseFloat(document.getElementById('spTotalValue').value)||0;
+        if(spVal>0) {
+            const att = (accSell/spVal)*100;
+            if(att>=4) accTotal=3000; else if(att>=3) accTotal=2000; else if(att>=2) accTotal=1000; else if(att>=1) accTotal=500;
+        }
+    }
+    logs.push({c: "Accessories", u:0, v: accTotal, n: ""});
+
+    // Final
+    const grand = combined + tbFinal + npcFinal + cpFinal + bunTotal + accTotal;
+    renderResults(logs, grand);
+}
+
+function renderResults(logs, total) {
+    let h = `<div class="text-sm text-gray-600 mb-2 text-center">Payout Summary</div>`;
+    logs.forEach(l => {
+        h += `<div class="summary-row"><div><span class="font-semibold text-gray-800">${l.c}</span>${l.n?`<span class="text-xs text-red-500 ml-2">(${l.n})</span>`:''}</div><div class="font-bold">₹${l.v.toLocaleString()}</div></div>`;
+    });
+    h += `<div class="summary-total flex justify-between"><span>Grand Total</span><span>₹${total.toLocaleString()}</span></div>`;
+    document.getElementById('resultBody').innerHTML = h;
+    document.getElementById('resultModal').style.display = 'block';
+}
+
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function downloadResults() {
+    const txt = document.getElementById('resultBody').innerText;
+    const blob = new Blob([txt], {type:'text/plain'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='incentive.txt'; a.click();
+}
+window.onclick = e => { if(e.target.classList.contains('modal')) e.target.style.display='none'; }
+</script>
+</body>
+</html>
+
+

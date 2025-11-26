@@ -28,6 +28,12 @@
     
     <a class="btn" href="DAILY%20SEC%20SALES%20TRACKER.html">Daily Sales Tracker</a>
 
-
+<script>
+if ('serviceWorker' in navigator) {
+window.addEventListener('load', () => {
+navigator.serviceWorker.register('/sw.js');
+});
+}
+</script>
 </body>
 </html>
